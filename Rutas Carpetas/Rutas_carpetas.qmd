@@ -1,0 +1,444 @@
+---
+title: ""
+format:
+  html:
+    embed-resources: true
+    theme: cosmo
+    toc: false
+    page-layout: full
+    output-dir: .
+---
+
+```{r setup, include=FALSE}
+library(readxl)
+library(dplyr)
+library(stringr)
+library(jsonlite)
+
+# 1. Cargar archivo Excel
+df_raw <- read_excel("catalogo_rutas.xlsx")
+
+# 2. Limpieza y estandarización de rutas según regla de negocio
+df_clean <- df_raw %>%
+  mutate(
+    Agente = str_trim(as.character(Agente)),
+    SNOMED_CT = str_trim(as.character(SNOMED_CT)),
+    RutaCarpeta = str_trim(as.character(RutaCarpeta)),
+    es_pcr = str_starts(Agente, regex("^PCR", ignore_case = TRUE))
+  ) %>%
+  mutate(
+    RutaProcesada = str_replace(RutaCarpeta, "^/?Documentos compartidos/?", ""),
+    RutaProcesada = str_trim(str_replace_all(RutaProcesada, "^/|/$", ""))
+  )
+
+# 3. Exportar datos a JSON para JavaScript
+json_catalogo <- toJSON(
+  df_clean %>% select(Agente, SNOMED_CT, RutaProcesada),
+  dataframe = "rows"
+)
+
+# 4. Construir árbol jerárquico con rutas completas asociadas a cada nodo
+armar_lista_arbol <- function(rutas) {
+  split_rutas <- str_split(rutas, "/")
+  
+  tree <- list()
+  for (p in split_rutas) {
+    p <- p[p != ""]
+    for (i in seq_along(p)) {
+      subpath <- p[1:i]
+      ruta_actual <- paste(subpath, collapse = "/")
+      key <- paste(subpath, collapse = "///")
+      if (is.null(tree[[key]])) {
+        tree[[key]] <- list(
+          nombre = p[i], 
+          ruta_completa = ruta_actual,
+          nivel = i, 
+          padre = if (i == 1) "root" else paste(p[1:(i-1)], collapse = "///")
+        )
+      }
+    }
+  }
+  
+  render_nodo <- function(padre_id) {
+    hijos <- names(tree)[sapply(tree, function(x) x$padre == padre_id)]
+    if (length(hijos) == 0) return("")
+    
+    out <- "<ul class='nodo-arbol'>"
+    for (h in sort(hijos)) {
+      nombre_nodo <- tree[[h]]$nombre
+      ruta_attr <- tree[[h]]$ruta_completa
+      sub_html <- render_nodo(h)
+      out <- paste0(
+        out, 
+        "<li><span class='item-arbol' data-ruta='", ruta_attr, "'>",
+        "<span class='icono-carpeta'>📁</span> ", nombre_nodo, 
+        "</span>", sub_html, "</li>"
+      )
+    }
+    out <- paste0(out, "</ul>")
+    return(out)
+  }
+  
+  render_nodo("root")
+}
+
+html_arbol <- armar_lista_arbol(unique(df_clean$RutaProcesada))
+```
+
+```{=html}
+<style>
+  body {
+    background-color: #f8fafc;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1e293b;
+    padding: 30px;
+    font-size: 18px; /* Base aumentada */
+  }
+
+ .contenedor-principal {
+     max-width: 1400px; /* O usa 92% si prefieres que sea responsivo al ancho de la pantalla */
+     width: 95%;
+     margin: 20px auto;
+     background: #ffffff;
+     border-radius: 14px;
+     border: 1px solid #e2e8f0;
+     box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.06), 0 3px 6px -2px rgba(0, 0, 0, 0.04);
+     padding: 40px 50px;
+   }
+
+  .encabezado-titulo {
+    font-size: 2.3rem; /* Título principal más grande */
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 12px;
+  }
+
+  .encabezado-subtitulo {
+    font-size: 1.25rem;
+    color: #64748b;
+    margin-bottom: 36px;
+  }
+
+  .grid-buscadores {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    margin-bottom: 30px;
+  }
+
+  @media (max-width: 768px) {
+    .grid-buscadores {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .etiqueta-input {
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+
+  .input-busqueda {
+    width: 100%;
+    font-size: 1.3rem; /* Campo de texto más grande */
+    padding: 16px 20px;
+    border: 2px solid #cbd5e1;
+    border-radius: 10px;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+    outline: none;
+    color: #0f172a;
+    background-color: #fcfdfe;
+  }
+
+  .input-busqueda:focus {
+    border-color: #0284c7;
+    box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.15);
+    background-color: #ffffff;
+  }
+
+  .panel-resultado {
+    display: none;
+    margin-top: 32px;
+    padding: 28px 32px;
+    background-color: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-left: 8px solid #0284c7;
+    border-radius: 10px;
+    animation: fadeIn 0.2s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .titulo-resultado {
+    font-size: 0.95rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    color: #0369a1;
+    margin-bottom: 16px;
+  }
+
+  .contenedor-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .chip {
+    background-color: #ffffff;
+    border: 1.5px solid #7dd3fc;
+    color: #0c4a6e;
+    font-size: 1.2rem; /* Etiquetas visuales más grandes */
+    font-weight: 700;
+    padding: 8px 16px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .chip-flecha {
+    color: #0284c7;
+    font-weight: 800;
+    font-size: 1.35rem;
+  }
+
+  .ruta-plana {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 1.15rem; /* Ruta de texto más legible */
+    color: #334155;
+    background-color: #ffffff;
+    padding: 14px 18px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    word-break: break-all;
+    line-height: 1.5;
+  }
+
+  /* Sección Mapa del Árbol */
+  .seccion-arbol {
+    margin-top: 50px;
+    border-top: 2px solid #f1f5f9;
+    padding-top: 32px;
+  }
+
+  .detalles-arbol summary {
+    font-weight: 700;
+    font-size: 1.3rem; /* Botón desplegable más grande */
+    color: #0f172a;
+    cursor: pointer;
+    outline: none;
+    padding: 10px 0;
+  }
+
+  .contenedor-vista-arbol {
+    margin-top: 18px;
+    padding: 24px 30px;
+    background: #fcfcfd;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    max-height: 550px;
+    overflow-y: auto;
+  }
+
+  .nodo-arbol {
+    list-style: none;
+    padding-left: 28px;
+    margin: 8px 0;
+  }
+
+  .nodo-arbol li {
+    margin: 8px 0;
+    font-size: 1.15rem; /* Ramas del árbol más grandes */
+    color: #334155;
+    line-height: 1.5;
+  }
+
+  .item-arbol {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+  }
+
+  /* Nodo resaltado tras la búsqueda */
+  .item-arbol.resaltado {
+    font-weight: 800 !important;
+    font-size: 1.35rem !important; /* Salto visual notorio */
+    color: #0369a1 !important;
+    background-color: #e0f2fe !important;
+    border-left: 5px solid #0284c7;
+    padding: 6px 14px;
+  }
+
+  .icono-carpeta {
+    margin-right: 6px;
+    font-size: 1.25rem;
+  }
+</style>
+
+<div class="contenedor-principal">
+  <div class="encabezado-titulo">Buscador de Rutas en SharePoint</div>
+  <div class="encabezado-subtitulo">
+    Busque el destino de almacenamiento por nombre de agente o por su código SNOMED CT.
+  </div>
+
+  <div class="grid-buscadores">
+    <div>
+      <label for="buscar-agente" class="etiqueta-input">Búsqueda por Agente</label>
+      <input 
+        type="text" 
+        id="buscar-agente" 
+        class="input-busqueda"
+        list="dl-agentes" 
+        placeholder="Ej: C. psittaci, PCR..." 
+        autocomplete="off"
+      >
+      <datalist id="dl-agentes"></datalist>
+    </div>
+
+    <div>
+      <label for="buscar-snomed" class="etiqueta-input">Búsqueda por Código SNOMED CT</label>
+      <input 
+        type="text" 
+        id="buscar-snomed" 
+        class="input-busqueda"
+        list="dl-snomed" 
+        placeholder="Ej: 14590003, 9284483..." 
+        autocomplete="off"
+      >
+      <datalist id="dl-snomed"></datalist>
+    </div>
+  </div>
+
+  <div id="panel-resultado" class="panel-resultado">
+    <div class="titulo-resultado">Ruta de destino en SharePoint</div>
+    <div id="contenedor-chips" class="contenedor-chips"></div>
+    <div style="font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 6px;">Ruta completa relativa:</div>
+    <div id="ruta-plana-texto" class="ruta-plana"></div>
+  </div>
+
+  <div class="seccion-arbol">
+    <details id="detalles-arbol" class="detalles-arbol">
+      <summary>Ver mapa general de carpetas (Árbol)</summary>
+      <div id="contenedor-vista-arbol" class="contenedor-vista-arbol">
+        `r html_arbol`
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+const catalogo = `r json_catalogo`;
+
+const dlAgentes = document.getElementById("dl-agentes");
+const dlSnomed = document.getElementById("dl-snomed");
+
+catalogo.forEach(item => {
+  if (item.Agente) {
+    const optA = document.createElement("option");
+    optA.value = item.Agente;
+    dlAgentes.appendChild(optA);
+  }
+  if (item.SNOMED_CT) {
+    const optS = document.createElement("option");
+    optS.value = item.SNOMED_CT;
+    dlSnomed.appendChild(optS);
+  }
+});
+
+const inputAgente = document.getElementById("buscar-agente");
+const inputSnomed = document.getElementById("buscar-snomed");
+const panelResultado = document.getElementById("panel-resultado");
+const chipsContenedor = document.getElementById("contenedor-chips");
+const rutaPlana = document.getElementById("ruta-plana-texto");
+const detallesArbol = document.getElementById("detalles-arbol");
+
+function limpiarResaltadoArbol() {
+  document.querySelectorAll(".item-arbol.resaltado").forEach(el => {
+    el.classList.remove("resaltado");
+  });
+}
+
+function resaltarEnArbol(rutaBuscada) {
+  limpiarResaltadoArbol();
+  if (!rutaBuscada) return;
+
+  const selector = `.item-arbol[data-ruta="${CSS.escape(rutaBuscada)}"]`;
+  const objetivo = document.querySelector(selector);
+
+  if (objetivo) {
+    objetivo.classList.add("resaltado");
+    
+    // Abrir automáticamente el acordeón del árbol si está cerrado
+    if (!detallesArbol.open) {
+      detallesArbol.open = true;
+    }
+    
+    // Desplazamiento hacia el elemento resaltado dentro del contenedor
+    objetivo.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function actualizarResultado(encontrado, origen) {
+  if (!encontrado) {
+    panelResultado.style.display = "none";
+    limpiarResaltadoArbol();
+    return;
+  }
+
+  if (origen === "agente") {
+    inputSnomed.value = encontrado.SNOMED_CT || "";
+  } else {
+    inputAgente.value = encontrado.Agente || "";
+  }
+
+  const partes = encontrado.RutaProcesada.split("/").filter(p => p.trim() !== "");
+  chipsContenedor.innerHTML = partes
+    .map((parte, idx) => {
+      const chipHtml = `<span class="chip">${parte}</span>`;
+      const flechaHtml = idx < partes.length - 1 ? `<span class="chip-flecha">→</span>` : ``;
+      return chipHtml + flechaHtml;
+    })
+    .join("");
+
+  rutaPlana.textContent = encontrado.RutaProcesada;
+  panelResultado.style.display = "block";
+
+  // Aplicar resaltado al nodo exacto en el árbol
+  resaltarEnArbol(encontrado.RutaProcesada);
+}
+
+inputAgente.addEventListener("input", function() {
+  const val = this.value.trim().toLowerCase();
+  const match = catalogo.find(item => item.Agente && item.Agente.toLowerCase() === val);
+  if (match) {
+    actualizarResultado(match, "agente");
+  } else {
+    if (this.value === "") inputSnomed.value = "";
+    panelResultado.style.display = "none";
+    limpiarResaltadoArbol();
+  }
+});
+
+inputSnomed.addEventListener("input", function() {
+  const val = this.value.trim();
+  const match = catalogo.find(item => item.SNOMED_CT && item.SNOMED_CT === val);
+  if (match) {
+    actualizarResultado(match, "snomed");
+  } else {
+    if (this.value === "") inputAgente.value = "";
+    panelResultado.style.display = "none";
+    limpiarResaltadoArbol();
+  }
+});
+</script>
+```

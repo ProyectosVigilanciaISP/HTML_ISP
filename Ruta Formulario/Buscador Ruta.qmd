@@ -1,0 +1,334 @@
+---
+title: "Guía de Rutas de Formulario de Envío Datos Vigilancia"
+format:
+  html:
+    embed-resources: true
+    theme: cosmo
+    toc: false
+---
+
+```{r setup, include=FALSE}
+# Configuración inicial del chunk
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{=html}
+<style>
+  body {
+    background-color: #f8fafc;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1e293b;
+    padding: 20px;
+  }
+
+  .contenedor-principal {
+    max-width: 820px;
+    margin: 40px auto;
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    padding: 40px;
+  }
+
+  .encabezado-titulo {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 8px;
+    line-height: 1.25;
+  }
+
+  .encabezado-subtitulo {
+    font-size: 1.05rem;
+    color: #64748b;
+    margin-bottom: 32px;
+    line-height: 1.5;
+  }
+
+  .etiqueta-input {
+    display: block;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .input-grande {
+    width: 100%;
+    font-size: 1.25rem;
+    padding: 16px 20px;
+    border: 2px solid #cbd5e1;
+    border-radius: 8px;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+    outline: none;
+    color: #0f172a;
+    background-color: #fcfdfe;
+  }
+
+  .input-grande:focus {
+    border-color: #0284c7;
+    box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.15);
+    background-color: #ffffff;
+  }
+
+  .panel-resultado {
+    display: none;
+    margin-top: 32px;
+    padding: 24px 28px;
+    background-color: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-left: 6px solid #0284c7;
+    border-radius: 8px;
+    animation: fadeIn 0.25s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .titulo-seccion-resultado {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #0369a1;
+    margin-bottom: 12px;
+  }
+
+  .contenedor-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .chip {
+    background-color: #ffffff;
+    border: 1px solid #7dd3fc;
+    color: #0c4a6e;
+    font-size: 1.05rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  .chip-flecha {
+    color: #0284c7;
+    font-weight: 700;
+    font-size: 1.1rem;
+    user-select: none;
+  }
+
+  .contenedor-pasos {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 16px 20px;
+  }
+
+  .lista-pasos {
+    margin: 0;
+    padding-left: 20px;
+  }
+
+  .lista-pasos li {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #334155;
+    margin-bottom: 6px;
+  }
+
+  .lista-pasos li:last-child {
+    margin-bottom: 0;
+  }
+</style>
+
+<div class="contenedor-principal">
+  <div class="encabezado-titulo">Guía de Rutas - Envío Datos Vigilancia</div>
+  <div class="encabezado-subtitulo">
+    Escriba el nombre del agente biológico o técnica PCR para conocer la secuencia de pasos dentro del formulario.
+  </div>
+
+  <div>
+    <label for="buscador-agente" class="etiqueta-input">Buscador de agente o técnica:</label>
+    <input 
+      type="text" 
+      id="buscador-agente" 
+      class="input-grande"
+      list="lista-agentes" 
+      placeholder="Escriba/Seleccione agente..." 
+      autocomplete="off"
+    >
+    <datalist id="lista-agentes"></datalist>
+  </div>
+
+  <div id="panel-resultado" class="panel-resultado">
+    <div class="titulo-seccion-resultado">Ruta de navegación</div>
+    <div id="contenedor-chips" class="contenedor-chips"></div>
+
+    <div class="contenedor-pasos">
+      <div style="font-size: 0.95rem; font-weight: 600; color: #0f172a; margin-bottom: 8px;">
+        Secuencia de selección en el formulario:
+      </div>
+      <ol id="pasos-lista" class="lista-pasos"></ol>
+    </div>
+  </div>
+</div>
+
+<script>
+const catalogo = [
+  // BACTERIOLOGÍA - MEN
+  { agente: "Haemophilus influenzae", tipo: "Bacteria", lab: "MEN (Meningitis Bacterianas)", opcion: "Haemophilus influenzae" },
+  { agente: "Listeria monocytogenes", tipo: "Bacteria", lab: "MEN (Meningitis Bacterianas)", opcion: "Listeria monocytogenes" },
+  { agente: "Neisseria meningitidis", tipo: "Bacteria", lab: "MEN (Meningitis Bacterianas)", opcion: "Neisseria meningitidis" },
+  { agente: "Streptococcus agalactiae", tipo: "Bacteria", lab: "MEN (Meningitis Bacterianas)", opcion: "Streptococcus agalactiae" },
+  { agente: "Streptococcus pneumoniae", tipo: "Bacteria", lab: "MEN (Meningitis Bacterianas)", opcion: "Streptococcus pneumoniae" },
+  { agente: "Streptococcus pyogenes", tipo: "Bacteria", lab: "MEN (Meningitis Bacterianas)", opcion: "Streptococcus pyogenes" },
+
+  // BACTERIOLOGÍA - BICE
+  { agente: "Chlamydia psittaci", tipo: "Bacteria", lab: "BICE (Bacterias Intracelulares y Cultivos Especiales)", opcion: "Chlamydia psittaci" },
+  { agente: "Chlamydia trachomatis", tipo: "Bacteria", lab: "BICE (Bacterias Intracelulares y Cultivos Especiales)", opcion: "Chlamydia trachomatis" },
+  { agente: "Coxiella burnetii", tipo: "Bacteria", lab: "BICE (Bacterias Intracelulares y Cultivos Especiales)", opcion: "Coxiella burnetii" },
+  { agente: "Rickettsia spp", tipo: "Bacteria", lab: "BICE (Bacterias Intracelulares y Cultivos Especiales)", opcion: "Rickettsia spp" },
+
+  // BACTERIOLOGÍA - EMZ
+  { agente: "Brucella spp", tipo: "Bacteria", lab: "EMZ (Emergentes y zoonóticos)", opcion: "Brucella spp" },
+  { agente: "Campylobacter spp", tipo: "Bacteria", lab: "EMZ (Emergentes y zoonóticos)", opcion: "Campylobacter spp" },
+  { agente: "Leptospira", tipo: "Bacteria", lab: "EMZ (Emergentes y zoonóticos)", opcion: "Leptospira" },
+  { agente: "Bacillus spp.", tipo: "Bacteria", lab: "EMZ (Emergentes y zoonóticos)", opcion: "Bacillus spp." },
+  { agente: "Clostridium botulinico", tipo: "Bacteria", lab: "EMZ (Emergentes y zoonóticos)", opcion: "Clostridium botulinico" },
+  { agente: "Clostridium tetanicum", tipo: "Bacteria", lab: "EMZ (Emergentes y zoonóticos)", opcion: "Clostridium tetanicum" },
+  { agente: "Corynebacterium Diphtheriae", tipo: "Bacteria", lab: "EMZ (Emergentes y zoonóticos)", opcion: "Corynebacterium Diphtheriae" },
+
+  // BACTERIOLOGÍA - ETA
+  { agente: "Escherichia coli enterohemorrágica (ECEH)", tipo: "Bacteria", lab: "ETA (Enfermedades Transmitidas por Alimentos)", opcion: "Escherichia coli enterohemorrágica (ECEH)" },
+  { agente: "Salmonella spp", tipo: "Bacteria", lab: "ETA (Enfermedades Transmitidas por Alimentos)", opcion: "Salmonella spp" },
+  { agente: "Shigella spp", tipo: "Bacteria", lab: "ETA (Enfermedades Transmitidas por Alimentos)", opcion: "Shigella spp" },
+  { agente: "Vibrio cholerae", tipo: "Bacteria", lab: "ETA (Enfermedades Transmitidas por Alimentos)", opcion: "Vibrio cholerae" },
+  { agente: "Vibrio parahaemolyticus", tipo: "Bacteria", lab: "ETA (Enfermedades Transmitidas por Alimentos)", opcion: "Vibrio parahaemolyticus" },
+  { agente: "Yersinia spp", tipo: "Bacteria", lab: "ETA (Enfermedades Transmitidas por Alimentos)", opcion: "Yersinia spp" },
+
+  // BACTERIOLOGÍA - ITS
+  { agente: "Neisseria gonorrhoeae", tipo: "Bacteria", lab: "ITS (Infecciones de Transmisión Sexual)", opcion: "Neisseria gonorrhoeae" },
+
+  // BACTERIOLOGÍA - MM
+  { agente: "Bordetella Pertussis", tipo: "Bacteria", lab: "MM (Microbiología Molecular)", opcion: "Bordetella Pertussis" },
+  { agente: "Legionella spp", tipo: "Bacteria", lab: "MM (Microbiología Molecular)", opcion: "Legionella spp" },
+
+  // PARÁSITOS
+  { agente: "Plasmodium spp (Malaria)", tipo: "Parásito", lab: null, opcion: "Plasmodium spp (Malaria)" },
+  { agente: "Trichinella spiralis (Triquinosis)", tipo: "Parásito", lab: null, opcion: "Trichinella spiralis (Triquinosis)" },
+  { agente: "Trypanosoma cruzi (Chagas)", tipo: "Parásito", lab: null, opcion: "Trypanosoma cruzi (Chagas)" },
+
+  // VIRUS - ENTÉRICOS
+  { agente: "Norovirus", tipo: "Virus", lab: "Virus Entéricos", opcion: "Norovirus" },
+  { agente: "Poliovirus", tipo: "Virus", lab: "Virus Entéricos", opcion: "Poliovirus" },
+  { agente: "Rotavirus", tipo: "Virus", lab: "Virus Entéricos", opcion: "Rotavirus" },
+
+  // VIRUS - HEPÁTICOS Y EMERGENTES
+  { agente: "Hantavirus", tipo: "Virus", lab: "Virus Hepáticos y Emergentes", opcion: "Hantavirus" },
+  { agente: "Virus Chikungunya", tipo: "Virus", lab: "Virus Hepáticos y Emergentes", opcion: "Virus Chikungunya" },
+  { agente: "Virus del Nilo", tipo: "Virus", lab: "Virus Hepáticos y Emergentes", opcion: "Virus del Nilo" },
+  { agente: "Virus Dengue", tipo: "Virus", lab: "Virus Hepáticos y Emergentes", opcion: "Virus Dengue" },
+  { agente: "Virus Fiebre Amarilla", tipo: "Virus", lab: "Virus Hepáticos y Emergentes", opcion: "Virus Fiebre Amarilla" },
+  { agente: "Virus Hepatitis A", tipo: "Virus", lab: "Virus Hepáticos y Emergentes", opcion: "Virus Hepatitis A" },
+  { agente: "Virus Hepatitis B", tipo: "Virus", lab: "Virus Hepáticos y Emergentes", opcion: "Virus Hepatitis B" },
+  { agente: "Virus Hepatitis C", tipo: "Virus", lab: "Virus Hepáticos y Emergentes", opcion: "Virus Hepatitis C" },
+  { agente: "Virus Hepatitis E", tipo: "Virus", lab: "Virus Hepáticos y Emergentes", opcion: "Virus Hepatitis E" },
+  { agente: "Virus HTLV I/II", tipo: "Virus", lab: "Virus Hepáticos y Emergentes", opcion: "Virus HTLV I/II" },
+  { agente: "Virus Zika", tipo: "Virus", lab: "Virus Hepáticos y Emergentes", opcion: "Virus Zika" },
+
+  // VIRUS - RÁBICO
+  { agente: "Virus Rabia", tipo: "Virus", lab: "Virus Rábico", opcion: "Virus Rabia" },
+
+  // VIRUS - RESPIRATORIOS Y EXANTEMÁTICOS
+  { agente: "Virus Varicela-Zoster", tipo: "Virus", lab: "Virus Respiratorios y Exantemáticos", opcion: "Virus Varicela-Zoster" },
+  { agente: "Influenza y otros virus respiratorios", tipo: "Virus", lab: "Virus Respiratorios y Exantemáticos", opcion: "Influenza y otros virus respiratorios" },
+  { agente: "Rubivirus", tipo: "Virus", lab: "Virus Respiratorios y Exantemáticos", opcion: "Rubivirus" },
+  { agente: "Morbillivirus", tipo: "Virus", lab: "Virus Respiratorios y Exantemáticos", opcion: "Morbillivirus" },
+
+  // VIRUS - ONCOGÉNICOS
+  { agente: "Virus Papiloma Humano", tipo: "Virus", lab: "Virus Oncogénicos", opcion: "Virus Papiloma Humano" },
+  { agente: "Virus Parotiditis", tipo: "Virus", lab: "Virus Oncogénicos", opcion: "Virus Parotiditis" },
+  { agente: "Creutzfeldt-Jakob", tipo: "Virus", lab: "Virus Oncogénicos", opcion: "Creutzfeldt-Jakob" },
+
+  // VIRUS - VIH
+  { agente: "VIH", tipo: "Virus", lab: "Virus VIH", opcion: "VIH" },
+
+  // HONGOS
+  { agente: "Candida spp.", tipo: "Hongo", lab: null, opcion: "Candida spp." },
+
+  // OTROS / PCR
+  { agente: "PCR Bordetella Pertussis", tipo: "Otros", lab: "Cargar datos PCR", opcion: "PCR Bordetella Pertussis" },
+  { agente: "PCR Coxiella burnetii", tipo: "Otros", lab: "Cargar datos PCR", opcion: "PCR Coxiella burnetii" },
+  { agente: "PCR Legionella spp.", tipo: "Otros", lab: "Cargar datos PCR", opcion: "PCR Legionella spp." },
+  { agente: "PCR Rickettsia spp", tipo: "Otros", lab: "Cargar datos PCR", opcion: "PCR Rickettsia spp" },
+  { agente: "PCR meningitis bacteriana cultivos negativos", tipo: "Otros", lab: "Cargar datos PCR", opcion: "PCR meningitis bacteriana cultivos negativos" }
+];
+
+const datalist = document.getElementById("lista-agentes");
+catalogo.forEach(item => {
+  const option = document.createElement("option");
+  option.value = item.agente;
+  datalist.appendChild(option);
+});
+
+const input = document.getElementById("buscador-agente");
+const panel = document.getElementById("panel-resultado");
+const chipsContenedor = document.getElementById("contenedor-chips");
+const pasosLista = document.getElementById("pasos-lista");
+
+input.addEventListener("input", function() {
+  const val = this.value.trim().toLowerCase();
+  const match = catalogo.find(item => item.agente.toLowerCase() === val);
+
+  if (match) {
+    let ruta = [];
+    let pasos = [];
+
+    // Paso 1
+    ruta.push(match.tipo);
+    pasos.push(`En <strong>"Indique el tipo de agente"</strong>, marque: <strong>${match.tipo}</strong>`);
+
+    // Paso 2 (Laboratorio si corresponde)
+    if (match.lab) {
+      ruta.push(match.lab);
+      if (match.tipo === "Bacteria") {
+        pasos.push(`En <strong>"Indique Laboratorio Bacteriologia"</strong>, marque: <strong>${match.lab}</strong>`);
+      } else if (match.tipo === "Virus") {
+        pasos.push(`En <strong>"Indique Laboratorio Virología"</strong>, marque: <strong>${match.lab}</strong>`);
+      } else if (match.tipo === "Otros") {
+        pasos.push(`En <strong>"Otros"</strong>, marque: <strong>${match.lab}</strong>`);
+      }
+    }
+
+    // Paso 3 (Opción final)
+    ruta.push(match.opcion);
+    pasos.push(`En la lista de opciones, marque: <strong>${match.opcion}</strong>`);
+
+    // Construir chips visuales
+    chipsContenedor.innerHTML = ruta
+      .map((item, idx) => {
+        const chipHtml = `<span class="chip">${item}</span>`;
+        const flechaHtml = idx < ruta.length - 1 ? `<span class="chip-flecha">→</span>` : ``;
+        return chipHtml + flechaHtml;
+      })
+      .join("");
+
+    // Construir lista numerada
+    pasosLista.innerHTML = pasos.map(p => `<li>${p}</li>`).join("");
+    
+    panel.style.display = "block";
+  } else {
+    panel.style.display = "none";
+  }
+});
+</script>
+```
